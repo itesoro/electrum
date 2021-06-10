@@ -189,8 +189,10 @@ class Mnemonic(Logger):
 
     def random_bytes(self, num):
         from time import time_ns
+        from secrets import token_bytes
         hasher = hashlib.sha3_512(os.getrandom(num))
         hasher.update(time_ns().to_bytes(16, 'big'))
+        hasher.update(token_bytes(num))
         assert num <= hasher.digest_size
         return hasher.digest()[:num]
 
