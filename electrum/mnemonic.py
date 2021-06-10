@@ -219,6 +219,9 @@ class Mnemonic(Logger):
         seed = self.entropy_to_seed(self.random_bytes(num_bits//8), self.wordlist)
         self.logger.info(f'{len(seed.split())} words')
         assert bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True)
+        assert self.entropy_to_seed(bytes.fromhex('3f9284bcb5c089863d0c7068a83893944e3b0d48dacf5e60d65b9e27942dfe2b'), self.wordlist) == 'display neither connect high ancient seek vintage mix hamster dove ceiling chuckle together mammal casino fly fury allow notice detail junk black weather jaguar'
+        assert self.entropy_to_seed(bytes.fromhex('335ab07f496eba24ce9671e2c117a5ce0140ee2263aad6f1052c94ac95a37544'), self.wordlist) == 'crew stereo cabin name two bar demise soda tissue anger truly orchard beef jacket maze inspire street market enroll citizen sing spider steak manage'
+        assert self.entropy_to_seed(bytes.fromhex('5737726319c3e98229dc27d261e8241593a8cbad0b2aaa5ebf23eae16c0e2abe'), self.wordlist) == 'fire romance occur crime direct scissors polar lumber sponsor aunt animal clinic dentist grape reflect grab prevent vote similar still bitter alpha priority scissors'
         return seed
 
 
