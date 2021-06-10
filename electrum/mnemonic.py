@@ -218,6 +218,7 @@ class Mnemonic(Logger):
         self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
         seed = self.entropy_to_seed(self.random_bytes(num_bits//8), self.wordlist)
         self.logger.info(f'{len(seed.split())} words')
+        assert bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True)
         return seed
 
 
