@@ -187,37 +187,36 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
+    def random_bytes(self, num):
+        from time import time_ns
+        hasher = hashlib.sha3_512(os.getrandom(num))
+        hasher.update(time_ns().to_bytes(16, 'big'))
+        assert num <= hasher.digest_size
+        return hasher.digest()[:num]
+
+    def entropy_to_seed(self, entropy, wordlist):
+        assert len(entropy) % 4 == 0
+        assert len(wordlist) == 2**11
+        seed_num_bits = (len(entropy) * 8) // 32 * 33
+        seed = entropy + hashlib.sha256(entropy).digest()
+        seed_bits = ''.join(map('{:08b}'.format, seed))
+        assert seed_num_bits <= len(seed_bits)
+        words = []
+        for i in range(0, seed_num_bits, 11):
+            idx = int(seed_bits[i:i+11], 2)
+            words.append(wordlist[idx])
+        return ' '.join(words)
+
     def make_seed(self, *, seed_type=None, num_bits=None) -> str:
         from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'
         if num_bits is None:
-            num_bits = 132
+            num_bits = 256
+        assert num_bits % 32 == 0 and 160 <= num_bits <= 256
         prefix = version.seed_prefix(seed_type)
-        # increase num_bits in order to obtain a uniform distribution for the last word
-        bpw = math.log(len(self.wordlist), 2)
-        num_bits = int(math.ceil(num_bits/bpw) * bpw)
         self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
-        entropy = 1
-        while entropy < pow(2, num_bits - bpw):
-            # try again if seed would not contain enough words
-            entropy = randrange(pow(2, num_bits))
-        nonce = 0
-        while True:
-            nonce += 1
-            i = entropy + nonce
-            seed = self.mnemonic_encode(i)
-            if i != self.mnemonic_decode(seed):
-                raise Exception('Cannot extract same entropy from mnemonic!')
-            if is_old_seed(seed):
-                continue
-            # Make sure the mnemonic we generate is not also a valid bip39 seed
-            # by accident. Note that this test has not always been done historically,
-            # so it cannot be relied upon.
-            if bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True):
-                continue
-            if is_new_seed(seed, prefix):
-                break
+        seed = self.entropy_to_seed(self.random_bytes(num_bits//8), self.wordlist)
         self.logger.info(f'{len(seed.split())} words')
         return seed
 

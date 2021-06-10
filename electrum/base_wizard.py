@@ -697,9 +697,9 @@ class BaseWizard(Logger):
         from . import mnemonic
         self.seed_type = seed_type
         seed = mnemonic.Mnemonic('en').make_seed(seed_type=self.seed_type)
-        self.opt_bip39 = False
+        self.opt_bip39 = True
         self.opt_ext = True
-        f = lambda x: self.request_passphrase(seed, x)
+        f = lambda x: self.restore_from_seed()
         self.show_seed_dialog(run_next=f, seed_text=seed)
 
     def request_passphrase(self, seed, opt_passphrase):
