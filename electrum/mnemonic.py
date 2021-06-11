@@ -196,9 +196,9 @@ class Mnemonic(Logger):
         assert num <= hasher.digest_size
         return hasher.digest()[:num]
 
-    def entropy_to_seed(self, entropy, wordlist):
+    def entropy_to_seed(self, entropy):
         assert len(entropy) % 4 == 0
-        assert len(wordlist) == 2**11
+        assert len(self.wordlist) == 2**11
         seed_num_bits = (len(entropy) * 8) // 32 * 33
         seed = entropy + hashlib.sha256(entropy).digest()
         seed_bits = ''.join(map('{:08b}'.format, seed))
@@ -206,24 +206,53 @@ class Mnemonic(Logger):
         words = []
         for i in range(0, seed_num_bits, 11):
             idx = int(seed_bits[i:i+11], 2)
-            words.append(wordlist[idx])
+            words.append(self.wordlist[idx])
         return ' '.join(words)
 
     def make_seed(self, *, seed_type=None, num_bits=None) -> str:
         from .keystore import bip39_is_checksum_valid
+        if seed_type == 'bip39':
+            if num_bits is None:
+                num_bits = 256
+            assert num_bits % 32 == 0 and 160 <= num_bits <= 256
+            self.logger.info(f"make_seed. entropy: {num_bits} bits")
+            seed = self.entropy_to_seed(self.random_bytes(num_bits//8))
+            self.logger.info(f'{len(seed.split())} words')
+            assert bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True)
+            assert self.entropy_to_seed(bytes.fromhex('3f9284bcb5c089863d0c7068a83893944e3b0d48dacf5e60d65b9e27942dfe2b')) == 'display neither connect high ancient seek vintage mix hamster dove ceiling chuckle together mammal casino fly fury allow notice detail junk black weather jaguar'
+            assert self.entropy_to_seed(bytes.fromhex('335ab07f496eba24ce9671e2c117a5ce0140ee2263aad6f1052c94ac95a37544')) == 'crew stereo cabin name two bar demise soda tissue anger truly orchard beef jacket maze inspire street market enroll citizen sing spider steak manage'
+            assert self.entropy_to_seed(bytes.fromhex('5737726319c3e98229dc27d261e8241593a8cbad0b2aaa5ebf23eae16c0e2abe')) == 'fire romance occur crime direct scissors polar lumber sponsor aunt animal clinic dentist grape reflect grab prevent vote similar still bitter alpha priority scissors'
+            return seed
         if seed_type is None:
             seed_type = 'segwit'
         if num_bits is None:
-            num_bits = 256
-        assert num_bits % 32 == 0 and 160 <= num_bits <= 256
+            num_bits = 132
         prefix = version.seed_prefix(seed_type)
+        # increase num_bits in order to obtain a uniform distribution for the last word
+        bpw = math.log(len(self.wordlist), 2)
+        num_bits = int(math.ceil(num_bits/bpw) * bpw)
         self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
-        seed = self.entropy_to_seed(self.random_bytes(num_bits//8), self.wordlist)
+        entropy = 1
+        while entropy < pow(2, num_bits - bpw):
+            # try again if seed would not contain enough words
+            entropy = randrange(pow(2, num_bits))
+        nonce = 0
+        while True:
+            nonce += 1
+            i = entropy + nonce
+            seed = self.mnemonic_encode(i)
+            if i != self.mnemonic_decode(seed):
+                raise Exception('Cannot extract same entropy from mnemonic!')
+            if is_old_seed(seed):
+                continue
+            # Make sure the mnemonic we generate is not also a valid bip39 seed
+            # by accident. Note that this test has not always been done historically,
+            # so it cannot be relied upon.
+            if bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True):
+                continue
+            if is_new_seed(seed, prefix):
+                break
         self.logger.info(f'{len(seed.split())} words')
-        assert bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True)
-        assert self.entropy_to_seed(bytes.fromhex('3f9284bcb5c089863d0c7068a83893944e3b0d48dacf5e60d65b9e27942dfe2b'), self.wordlist) == 'display neither connect high ancient seek vintage mix hamster dove ceiling chuckle together mammal casino fly fury allow notice detail junk black weather jaguar'
-        assert self.entropy_to_seed(bytes.fromhex('335ab07f496eba24ce9671e2c117a5ce0140ee2263aad6f1052c94ac95a37544'), self.wordlist) == 'crew stereo cabin name two bar demise soda tissue anger truly orchard beef jacket maze inspire street market enroll citizen sing spider steak manage'
-        assert self.entropy_to_seed(bytes.fromhex('5737726319c3e98229dc27d261e8241593a8cbad0b2aaa5ebf23eae16c0e2abe'), self.wordlist) == 'fire romance occur crime direct scissors polar lumber sponsor aunt animal clinic dentist grape reflect grab prevent vote similar still bitter alpha priority scissors'
         return seed
 
 
